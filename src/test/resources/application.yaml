@@ -1,0 +1,52 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:catalog;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+  mvc:
+    problemdetails:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  flyway:
+    enabled: true
+  docker:
+    compose:
+      enabled: false
+      skip:
+        in-tests: true
+
+app:
+  api:
+    version: 1.0.0
+    server-url: http://localhost:8080
+    v1-sunset: 2027-04-01
+  security:
+    jwt-secret: "techshop-dev-secret-key-32bytes!"
+    partner-key: "dev-partner-key"
+    dev-tokens-enabled: true
+    protect-partner-docs: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    version: openapi_3_1
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+  override-with-generic-response: false
+  paths-to-match: /api/**
+  paths-to-exclude: /api/dev/**

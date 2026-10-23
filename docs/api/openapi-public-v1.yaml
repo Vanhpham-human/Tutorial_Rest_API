@@ -1,0 +1,1230 @@
+openapi: 3.1.0
+info:
+  title: TechShop Public API v1
+  description: "Hợp đồng public phiên bản 1. GET /api/orders/{code} trả totalAmount\
+    \ dạng số, deprecated, ngừng hỗ trợ vào 2027-04-01. Dùng nhóm public-v2 với header\
+    \ X-API-Version: 2."
+  contact:
+    name: Catalog Team
+    email: catalog@example.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  version: 1.0.0
+externalDocs:
+  description: Hướng dẫn tích hợp
+  url: https://example.com/docs/catalog
+servers:
+- url: http://localhost:8080
+  description: Môi trường hiện tại
+tags:
+- name: Orders
+  description: Đặt và theo dõi đơn hàng
+- name: Invoices
+  description: Hóa đơn PDF của đơn
+paths:
+  /api/orders:
+    get:
+      tags:
+      - Orders
+      summary: Danh sách đơn
+      description: Phân trang page/size/sort. sort chỉ createdAt hoặc totalAmount.
+        CUSTOMER chỉ thấy đơn của mình; ADMIN thấy mọi đơn.
+      operationId: listOrders
+      parameters:
+      - name: page
+        in: query
+        description: "Chỉ số trang, bắt đầu từ 0"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          description: "Chỉ số trang, bắt đầu từ 0"
+          minimum: 0
+      - name: size
+        in: query
+        description: "Kích thước trang, tối đa 100"
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          description: "Kích thước trang, tối đa 100"
+          maximum: 100
+          minimum: 1
+      - name: sort
+        in: query
+        description: "createdAt hoặc totalAmount, kèm asc hoặc desc"
+        required: false
+        schema:
+          type: string
+          default: "createdAt,desc"
+          description: "createdAt hoặc totalAmount, kèm asc hoặc desc"
+          enum:
+          - "createdAt,asc"
+          - "createdAt,desc"
+          - "totalAmount,asc"
+          - "totalAmount,desc"
+      - name: status
+        in: query
+        description: Lọc theo trạng thái
+        required: false
+        schema:
+          type: string
+          description: Lọc theo trạng thái
+          enum:
+          - PENDING
+          - CONFIRMED
+          - SHIPPING
+          - DELIVERED
+          - CANCELLED
+          - RETURN_REQUESTED
+          - RETURNED
+      - name: from
+        in: query
+        description: "Từ ngày tạo (UTC, inclusive), YYYY-MM-DD"
+        required: false
+        schema:
+          type: string
+          format: date
+          description: "Từ ngày tạo (UTC, inclusive), YYYY-MM-DD"
+      - name: to
+        in: query
+        description: "Đến ngày tạo (UTC, inclusive), YYYY-MM-DD"
+        required: false
+        schema:
+          type: string
+          format: date
+          description: "Đến ngày tạo (UTC, inclusive), YYYY-MM-DD"
+      - name: minTotal
+        in: query
+        description: Tổng tiền tối thiểu
+        required: false
+        schema:
+          type: number
+          description: Tổng tiền tối thiểu
+          minimum: 0.0
+      responses:
+        "200":
+          description: Trang đơn hàng
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPage"
+        "400":
+          description: "VALIDATION_FAILED: Validation failed; INVALID_SORT: Invalid\
+            \ sort; INVALID_DATE_RANGE: Invalid date range"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                VALIDATION_FAILED:
+                  summary: Validation failed
+                  value:
+                    errors:
+                    - message: must not be empty
+                      field: items
+                    code: VALIDATION_FAILED
+                    detail: Invalid request content.
+                    status: 400
+                    instance: /api/orders
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Validation failed
+                    type: https://api.example.com/errors/validation-failed
+                INVALID_SORT:
+                  summary: Invalid sort
+                  value:
+                    type: https://api.example.com/errors/invalid-sort
+                    status: 400
+                    instance: /api/orders
+                    code: INVALID_SORT
+                    detail: sort chỉ nhận createdAt hoặc totalAmount kèm asc/desc
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Invalid sort
+                INVALID_DATE_RANGE:
+                  summary: Invalid date range
+                  value:
+                    type: https://api.example.com/errors/invalid-date-range
+                    status: 400
+                    instance: /api/orders
+                    code: INVALID_DATE_RANGE
+                    detail: from phải nhỏ hơn hoặc bằng to
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Invalid date range
+        "401":
+          description: "UNAUTHORIZED: Unauthorized"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNAUTHORIZED:
+                  summary: Unauthorized
+                  value:
+                    type: https://api.example.com/errors/unauthorized
+                    status: 401
+                    instance: /api/orders
+                    code: UNAUTHORIZED
+                    detail: Thiếu hoặc sai token
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unauthorized
+      security:
+      - bearerAuth: []
+    post:
+      tags:
+      - Orders
+      summary: Tạo đơn hàng
+      description: "CUSTOMER tạo đơn. Giá do server tính từ catalog. Header Idempotency-Key\
+        \ bắt buộc: cùng key và cùng body trong 24 giờ trả lại response lần đầu; cù\
+        ng key khác body trả 409 IDEMPOTENCY_CONFLICT."
+      operationId: createOrder
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        description: Bắt buộc khi tạo đơn. Cùng key và cùng raw body trong 24 giờ
+          trả lại response lần đầu. Cùng key khác body trả 409 IDEMPOTENCY_CONFLICT.
+        required: true
+        schema:
+          type: string
+          maxLength: 200
+          minLength: 1
+        example: order-2026-10-16-lan-001
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            examples:
+              COD:
+                summary: Thanh toán khi nhận hàng
+                description: COD
+                value:
+                  shippingAddress: "12 Nguyen Hue, Quan 1, TP.HCM"
+                  payment:
+                    method: COD
+                  items:
+                  - productId: 1
+                    quantity: 1
+              CARD:
+                summary: Thanh toán thẻ
+                description: CARD
+                value:
+                  shippingAddress: "12 Nguyen Hue, Quan 1, TP.HCM"
+                  payment:
+                    method: CARD
+                    provider: VISA
+                    last4: "4242"
+                  items:
+                  - productId: 1
+                    quantity: 2
+                  - productId: 2
+                    quantity: 1
+              BANK_TRANSFER:
+                summary: Chuyển khoản
+                description: BANK_TRANSFER
+                value:
+                  shippingAddress: "25 Le Loi, Hue"
+                  payment:
+                    method: BANK_TRANSFER
+                    bankCode: VCB
+                    transferRef: FT26016ABC
+                  items:
+                  - productId: 2
+                    quantity: 1
+        required: true
+      responses:
+        "201":
+          description: Đã tạo
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCreatedResponse"
+        "400":
+          description: "VALIDATION_FAILED: Validation failed; MALFORMED_JSON: Malformed\
+            \ JSON; IDEMPOTENCY_KEY_REQUIRED: Idempotency key required; DUPLICATE_PRODUCT:\
+            \ Duplicate product"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                VALIDATION_FAILED:
+                  summary: Validation failed
+                  value:
+                    errors:
+                    - message: must not be empty
+                      field: items
+                    code: VALIDATION_FAILED
+                    detail: Invalid request content.
+                    status: 400
+                    instance: /api/orders
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Validation failed
+                    type: https://api.example.com/errors/validation-failed
+                MALFORMED_JSON:
+                  summary: Malformed JSON
+                  value:
+                    type: https://api.example.com/errors/malformed-json
+                    status: 400
+                    instance: /api/orders
+                    code: MALFORMED_JSON
+                    detail: Body không phải JSON hợp lệ
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Malformed JSON
+                IDEMPOTENCY_KEY_REQUIRED:
+                  summary: Idempotency key required
+                  value:
+                    type: https://api.example.com/errors/idempotency-key-required
+                    status: 400
+                    instance: /api/orders
+                    code: IDEMPOTENCY_KEY_REQUIRED
+                    detail: Header Idempotency-Key là bắt buộc
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Idempotency key required
+                DUPLICATE_PRODUCT:
+                  summary: Duplicate product
+                  value:
+                    type: https://api.example.com/errors/duplicate-product
+                    status: 400
+                    instance: /api/orders
+                    code: DUPLICATE_PRODUCT
+                    detail: Mỗi productId chỉ xuất hiện một lần trong đơn
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Duplicate product
+        "404":
+          description: "PRODUCT_NOT_FOUND: Product not found"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                PRODUCT_NOT_FOUND:
+                  summary: Product not found
+                  value:
+                    type: https://api.example.com/errors/product-not-found
+                    status: 404
+                    instance: /api/orders
+                    code: PRODUCT_NOT_FOUND
+                    detail: Không tìm thấy sản phẩm id=99
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Product not found
+        "409":
+          description: "IDEMPOTENCY_CONFLICT: Idempotency conflict"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                IDEMPOTENCY_CONFLICT:
+                  summary: Idempotency conflict
+                  value:
+                    type: https://api.example.com/errors/idempotency-conflict
+                    status: 409
+                    instance: /api/orders
+                    code: IDEMPOTENCY_CONFLICT
+                    detail: Idempotency-Key đã dùng với nội dung khác
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Idempotency conflict
+        "401":
+          description: "UNAUTHORIZED: Unauthorized"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNAUTHORIZED:
+                  summary: Unauthorized
+                  value:
+                    type: https://api.example.com/errors/unauthorized
+                    status: 401
+                    instance: /api/orders
+                    code: UNAUTHORIZED
+                    detail: Thiếu hoặc sai token
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unauthorized
+        "403":
+          description: "FORBIDDEN: Forbidden"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                FORBIDDEN:
+                  summary: Forbidden
+                  value:
+                    type: https://api.example.com/errors/forbidden
+                    status: 403
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: FORBIDDEN
+                    detail: Không có quyền thực hiện thao tác này
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Forbidden
+      security:
+      - bearerAuth: []
+  /api/orders/{code}/transitions:
+    post:
+      tags:
+      - Orders
+      summary: Chuyển trạng thái đơn
+      description: "ADMIN được mọi action đúng trạng thái. CUSTOMER chỉ CANCEL khi\
+        \ đơn của mình còn PENDING, và REQUEST_RETURN trong 7 ngày sau DELIVERED.\
+        \ Hủy CONFIRMED chỉ ADMIN và bắt buộc reason. If-Match phải khớp version."
+      operationId: transitionOrder
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: If-Match
+        in: header
+        description: "ETag version hiện tại, ví dụ \"0\""
+        required: true
+        schema:
+          type: string
+        example: "0"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransitionRequest"
+        required: true
+      responses:
+        "200":
+          description: Đã chuyển trạng thái
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransitionResponse"
+        "400":
+          description: "VALIDATION_FAILED: Validation failed; MALFORMED_JSON: Malformed\
+            \ JSON; REASON_REQUIRED: Reason required"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                VALIDATION_FAILED:
+                  summary: Validation failed
+                  value:
+                    errors:
+                    - message: must not be empty
+                      field: items
+                    code: VALIDATION_FAILED
+                    detail: Invalid request content.
+                    status: 400
+                    instance: /api/orders
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Validation failed
+                    type: https://api.example.com/errors/validation-failed
+                MALFORMED_JSON:
+                  summary: Malformed JSON
+                  value:
+                    type: https://api.example.com/errors/malformed-json
+                    status: 400
+                    instance: /api/orders
+                    code: MALFORMED_JSON
+                    detail: Body không phải JSON hợp lệ
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Malformed JSON
+                REASON_REQUIRED:
+                  summary: Reason required
+                  value:
+                    type: https://api.example.com/errors/reason-required
+                    status: 400
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: REASON_REQUIRED
+                    detail: Hủy đơn CONFIRMED bắt buộc có reason
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Reason required
+        "401":
+          description: "UNAUTHORIZED: Unauthorized"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNAUTHORIZED:
+                  summary: Unauthorized
+                  value:
+                    type: https://api.example.com/errors/unauthorized
+                    status: 401
+                    instance: /api/orders
+                    code: UNAUTHORIZED
+                    detail: Thiếu hoặc sai token
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unauthorized
+        "403":
+          description: "FORBIDDEN: Forbidden"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                FORBIDDEN:
+                  summary: Forbidden
+                  value:
+                    type: https://api.example.com/errors/forbidden
+                    status: 403
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: FORBIDDEN
+                    detail: Không có quyền thực hiện thao tác này
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Forbidden
+        "404":
+          description: "ORDER_NOT_FOUND: Order not found"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                ORDER_NOT_FOUND:
+                  summary: Order not found
+                  value:
+                    type: https://api.example.com/errors/order-not-found
+                    status: 404
+                    instance: /api/orders/ORD-2026-000999
+                    code: ORDER_NOT_FOUND
+                    detail: Không tìm thấy đơn ORD-2026-000999
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Order not found
+        "409":
+          description: "ORDER_INVALID_TRANSITION: Invalid transition; RETURN_WINDOW_EXPIRED:\
+            \ Return window expired"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                ORDER_INVALID_TRANSITION:
+                  summary: Invalid transition
+                  value:
+                    type: https://api.example.com/errors/order-invalid-transition
+                    status: 409
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: ORDER_INVALID_TRANSITION
+                    detail: Không thể CANCEL khi đơn đang ở trạng thái SHIPPING
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Invalid transition
+                RETURN_WINDOW_EXPIRED:
+                  summary: Return window expired
+                  value:
+                    type: https://api.example.com/errors/return-window-expired
+                    status: 409
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: RETURN_WINDOW_EXPIRED
+                    detail: Chỉ được yêu cầu trả hàng trong 7 ngày kể từ khi giao
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Return window expired
+        "412":
+          description: "PRECONDITION_FAILED: Precondition failed"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                PRECONDITION_FAILED:
+                  summary: Precondition failed
+                  value:
+                    type: https://api.example.com/errors/precondition-failed
+                    status: 412
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: PRECONDITION_FAILED
+                    detail: If-Match không khớp version hiện tại
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Precondition failed
+        "428":
+          description: "PRECONDITION_REQUIRED: Precondition required"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                PRECONDITION_REQUIRED:
+                  summary: Precondition required
+                  value:
+                    type: https://api.example.com/errors/precondition-required
+                    status: 428
+                    instance: /api/orders/ORD-2026-000001/transitions
+                    code: PRECONDITION_REQUIRED
+                    detail: Header If-Match là bắt buộc
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Precondition required
+      security:
+      - bearerAuth: []
+  /api/orders/{code}:
+    get:
+      tags:
+      - Orders
+      summary: Chi tiết đơn
+      description: "Deprecated. Ngừng hỗ trợ vào 2027-04-01. totalAmount là số. Chuyể\
+        n sang X-API-Version: 2."
+      operationId: getOrder
+      parameters:
+      - name: code
+        in: path
+        description: Mã đơn
+        required: true
+        schema:
+          type: string
+        example: ORD-2026-000001
+      - name: X-API-Version
+        in: header
+        description: "1 (deprecated, ngừng hỗ trợ 2027-04-01) hoặc 2. Mặc định 1."
+        required: false
+        schema:
+          type: string
+          default: "1"
+          enum:
+          - "1"
+          - "2"
+      responses:
+        "200":
+          description: Tìm thấy đơn
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderDetailV1"
+        "401":
+          description: "UNAUTHORIZED: Unauthorized"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNAUTHORIZED:
+                  summary: Unauthorized
+                  value:
+                    type: https://api.example.com/errors/unauthorized
+                    status: 401
+                    instance: /api/orders
+                    code: UNAUTHORIZED
+                    detail: Thiếu hoặc sai token
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unauthorized
+        "404":
+          description: "ORDER_NOT_FOUND: Order not found"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                ORDER_NOT_FOUND:
+                  summary: Order not found
+                  value:
+                    type: https://api.example.com/errors/order-not-found
+                    status: 404
+                    instance: /api/orders/ORD-2026-000999
+                    code: ORDER_NOT_FOUND
+                    detail: Không tìm thấy đơn ORD-2026-000999
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Order not found
+        "400":
+          description: "UNSUPPORTED_API_VERSION: Unsupported API version"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNSUPPORTED_API_VERSION:
+                  summary: Unsupported API version
+                  value:
+                    type: https://api.example.com/errors/unsupported-api-version
+                    status: 400
+                    instance: /api/orders/ORD-2026-000001
+                    code: UNSUPPORTED_API_VERSION
+                    detail: X-API-Version chỉ nhận 1 hoặc 2
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unsupported API version
+      deprecated: true
+      security:
+      - bearerAuth: []
+  /api/orders/{code}/invoice:
+    get:
+      tags:
+      - Invoices
+      summary: Tải hóa đơn PDF
+      operationId: downloadInvoice
+      parameters:
+      - name: code
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Nội dung PDF
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: "UNAUTHORIZED: Unauthorized"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                UNAUTHORIZED:
+                  summary: Unauthorized
+                  value:
+                    type: https://api.example.com/errors/unauthorized
+                    status: 401
+                    instance: /api/orders
+                    code: UNAUTHORIZED
+                    detail: Thiếu hoặc sai token
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Unauthorized
+        "404":
+          description: "ORDER_NOT_FOUND: Order not found; INVOICE_NOT_FOUND: Invoice\
+            \ not found"
+          headers:
+            X-Request-Id:
+              description: "Định danh tương quan. Server echo giá trị client gửi,\
+                \ hoặc sinh UUID nếu thiếu."
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ApiProblem"
+              examples:
+                ORDER_NOT_FOUND:
+                  summary: Order not found
+                  value:
+                    type: https://api.example.com/errors/order-not-found
+                    status: 404
+                    instance: /api/orders/ORD-2026-000999
+                    code: ORDER_NOT_FOUND
+                    detail: Không tìm thấy đơn ORD-2026-000999
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Order not found
+                INVOICE_NOT_FOUND:
+                  summary: Invoice not found
+                  value:
+                    type: https://api.example.com/errors/invoice-not-found
+                    status: 404
+                    instance: /api/orders/ORD-2026-000001/invoice
+                    code: INVOICE_NOT_FOUND
+                    detail: Đơn chưa có hóa đơn
+                    timestamp: 2026-10-16T03:12:45.120Z
+                    title: Invoice not found
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    BankTransferPayment:
+      description: Chuyển khoản ngân hàng
+      example:
+        method: BANK_TRANSFER
+        bankCode: VCB
+        transferRef: FT26016ABC
+      properties:
+        method:
+          type: string
+          enum:
+          - BANK_TRANSFER
+          example: BANK_TRANSFER
+          minLength: 1
+        bankCode:
+          type: string
+          example: VCB
+          minLength: 1
+        transferRef:
+          type: string
+          example: FT26016ABC
+          minLength: 1
+      required:
+      - bankCode
+      - method
+      - transferRef
+    CardPayment:
+      description: Thanh toán thẻ
+      example:
+        method: CARD
+        provider: VISA
+        last4: "4242"
+      properties:
+        method:
+          type: string
+          enum:
+          - CARD
+          example: CARD
+          minLength: 1
+        provider:
+          type: string
+          description: Tổ chức thẻ
+          example: VISA
+          minLength: 1
+        last4:
+          type: string
+          description: 4 số cuối của thẻ
+          example: "4242"
+          minLength: 1
+          pattern: "\\d{4}"
+      required:
+      - last4
+      - method
+      - provider
+    CodPayment:
+      description: Thanh toán khi nhận hàng
+      example:
+        method: COD
+      properties:
+        method:
+          type: string
+          enum:
+          - COD
+          example: COD
+          minLength: 1
+      required:
+      - method
+    CreateOrderRequest:
+      type: object
+      description: Tạo đơn. Client không gửi giá; server chụp giá sản phẩm tại thời
+        điểm đặt.
+      properties:
+        shippingAddress:
+          type: string
+          example: "12 Nguyen Hue, Quan 1, TP.HCM"
+          maxLength: 500
+          minLength: 0
+        payment:
+          $ref: "#/components/schemas/Payment"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderLineRequest"
+          maxItems: 50
+          minItems: 0
+      required:
+      - items
+      - payment
+      - shippingAddress
+    OrderLineRequest:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+          example: 1
+        quantity:
+          type: integer
+          format: int32
+          example: 1
+          maximum: 20
+          minimum: 1
+      required:
+      - productId
+      - quantity
+    Payment:
+      description: Phương thức thanh toán. oneOf theo discriminator method.
+      discriminator:
+        propertyName: method
+        mapping:
+          COD: "#/components/schemas/CodPayment"
+          BANK_TRANSFER: "#/components/schemas/BankTransferPayment"
+          CARD: "#/components/schemas/CardPayment"
+      oneOf:
+      - $ref: "#/components/schemas/CodPayment"
+      - $ref: "#/components/schemas/CardPayment"
+      - $ref: "#/components/schemas/BankTransferPayment"
+    OrderCreatedResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: ORD-2026-000001
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - SHIPPING
+          - DELIVERED
+          - CANCELLED
+          - RETURN_REQUESTED
+          - RETURNED
+        totalAmount:
+          type: number
+          example: 1590000
+        currency:
+          type: string
+          example: VND
+        version:
+          type: integer
+          format: int64
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+    TransitionRequest:
+      type: object
+      properties:
+        action:
+          $ref: "#/components/schemas/OrderAction"
+        reason:
+          type: string
+          description: Bắt buộc khi ADMIN hủy đơn đang CONFIRMED
+          example: Khách đổi ý
+          maxLength: 500
+          minLength: 0
+      required:
+      - action
+    TransitionResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: ORD-2026-000001
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - SHIPPING
+          - DELIVERED
+          - CANCELLED
+          - RETURN_REQUESTED
+          - RETURNED
+        version:
+          type: integer
+          format: int64
+          example: 1
+    OrderPage:
+      type: object
+      description: "Trang đơn hàng với content, page, size và totalElements."
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderSummary"
+        page:
+          type: integer
+          format: int32
+          example: 0
+        size:
+          type: integer
+          format: int32
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          example: 1
+        totalPages:
+          type: integer
+          format: int32
+          example: 1
+        first:
+          type: boolean
+        last:
+          type: boolean
+    OrderSummary:
+      type: object
+      properties:
+        code:
+          type: string
+          example: ORD-2026-000001
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - SHIPPING
+          - DELIVERED
+          - CANCELLED
+          - RETURN_REQUESTED
+          - RETURNED
+        totalAmount:
+          type: number
+          example: 1590000
+        currency:
+          type: string
+          example: VND
+        createdAt:
+          type: string
+          format: date-time
+    OrderDetailV1:
+      type: object
+      description: Chi tiết đơn phiên bản 1. totalAmount là số. Ngừng hỗ trợ 2027-04-01.
+      properties:
+        code:
+          type: string
+          example: ORD-2026-000001
+        customerId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CONFIRMED
+          - SHIPPING
+          - DELIVERED
+          - CANCELLED
+          - RETURN_REQUESTED
+          - RETURNED
+        shippingAddress:
+          type: string
+        totalAmount:
+          type: number
+          description: Tổng tiền dạng số. Deprecated cùng operation.
+          example: 1590000
+        currency:
+          type: string
+          example: VND
+        version:
+          type: integer
+          format: int64
+          example: 0
+        payment:
+          $ref: "#/components/schemas/Payment"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderItemResponse"
+        createdAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+    OrderItemResponse:
+      type: object
+      properties:
+        productId:
+          type: integer
+          format: int64
+          example: 1
+        productName:
+          type: string
+          example: Bàn phím cơ K8 Pro
+        unitPrice:
+          type: number
+          example: 1590000
+        quantity:
+          type: integer
+          format: int32
+          example: 1
+        lineTotal:
+          type: number
+          example: 1590000
+    ApiProblem:
+      description: "RFC 9457 Problem Details, thêm code và errors"
+      properties:
+        type:
+          type: string
+          format: uri
+          example: https://api.example.com/errors/validation
+        title:
+          type: string
+          example: Validation failed
+        status:
+          type: integer
+          format: int32
+          example: 400
+        detail:
+          type: string
+          example: Invalid request content.
+        instance:
+          type: string
+          format: uri
+          example: /api/orders
+        code:
+          type: string
+          example: VALIDATION_FAILED
+        timestamp:
+          type: string
+          format: date-time
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiFieldError"
+    ApiFieldError:
+      description: Một lỗi gắn với trường của request
+      properties:
+        field:
+          type: string
+          example: name
+        message:
+          type: string
+          example: must not be blank
+    OrderAction:
+      type: string
+      description: |-
+        CANCEL: CUSTOMER chỉ khi đơn của mình còn PENDING; không dùng cho CONFIRMED.
+        REQUEST_RETURN: CUSTOMER trên đơn của mình, chỉ khi DELIVERED và trong 7 ngày kể từ lúc giao.
+      enum:
+      - CANCEL
+      - REQUEST_RETURN
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: JWT HS256. Claim role là CUSTOMER hoặc ADMIN. CUSTOMER kèm customerId.
+      scheme: bearer
+      bearerFormat: JWT

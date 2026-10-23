@@ -1,0 +1,13 @@
+extends:
+  - recommended
+
+rules:
+  no-unused-components: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  security-defined: error
+  info-license: off
+  info-license-strict: off
+  no-server-example.com: off
+  no-ambiguous-paths: error
+  no-identical-paths: error

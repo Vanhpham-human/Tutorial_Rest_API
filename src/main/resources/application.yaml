@@ -1,0 +1,55 @@
+spring:
+  application:
+    name: catalog
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        type:
+          preferred_instant_jdbc_type: TIMESTAMP
+  mvc:
+    problemdetails:
+      enabled: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  flyway:
+    enabled: true
+
+server:
+  error:
+    include-stacktrace: never
+    include-message: never
+
+app:
+  api:
+    version: 1.0.0
+    server-url: http://localhost:8080
+    v1-sunset: 2027-04-01
+  security:
+    jwt-secret: "${JWT_SECRET:techshop-dev-secret-key-32bytes!}"
+    partner-key: "${PARTNER_KEY:dev-partner-key}"
+    dev-tokens-enabled: true
+    protect-partner-docs: false
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    version: openapi_3_1
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: true
+    disable-swagger-default-url: true
+    urls-primary-name: public-v2
+  override-with-generic-response: false
+  default-produces-media-type: application/json
+  paths-to-match: /api/**
+  paths-to-exclude: /api/dev/**

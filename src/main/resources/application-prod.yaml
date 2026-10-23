@@ -1,0 +1,18 @@
+spring:
+  docker:
+    compose:
+      enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: false
+
+app:
+  security:
+    dev-tokens-enabled: false
+    protect-partner-docs: true
